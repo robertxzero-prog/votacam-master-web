@@ -308,104 +308,17 @@ async function redefinirCredencialAdmin(codigoInstancia, payload) {
 }
 
 async function testarConexaoInstancia(item) {
-  const backendUrl = (item?.backend_url || "").trim();
-  if (!backendUrl) {
-    return { ok: false, mensagem: "Instância sem backend_url configurado." };
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  const url = `${backendUrl.replace(/\/$/, "")}/configuracao/onboarding/status`;
-
-  try {
-    const started = performance.now();
-    const res = await fetch(url, {
-      method: "GET",
-      signal: controller.signal,
-    });
-    const elapsed = Math.round(performance.now() - started);
-
-    let data = null;
-    try {
-      data = await res.json();
-    } catch {
-      data = null;
-    }
-
-    if (!res.ok) {
-      return {
-        ok: false,
-        mensagem: `HTTP ${res.status} em ${elapsed}ms`,
-        detalhe: data?.message || data?.mensagem || "Resposta inválida.",
-      };
-    }
-
-    return {
-      ok: true,
-      mensagem: `Conexão OK (${elapsed}ms)`,
-      detalhe: `onboarding_status: ${data?.onboarding_status || "-"} | licenca_status: ${data?.licenca_status || "-"}`,
-    };
-  } catch (err) {
-    if (err?.name === "AbortError") {
-      return { ok: false, mensagem: "Timeout (8s) ao conectar na instância." };
-    }
-    return {
-      ok: false,
-      mensagem: "Falha de conexão com backend da instância.",
-      detalhe: err?.message || String(err),
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
+  return api("/configuracao/camaras/testar-conexao", {
+    method: "POST",
+    body: JSON.stringify({ codigo_instancia: item?.codigo_instancia }),
+  });
 }
 
 async function sincronizarLicencaInstanciaAgora(item) {
-  const backendUrl = (item?.backend_url || "").trim();
-  if (!backendUrl) {
-    return { ok: false, mensagem: "Instância sem backend_url configurado." };
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-  const url = `${backendUrl.replace(/\/$/, "")}/configuracao/licenca/sincronizar-agora`;
-
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      signal: controller.signal,
-    });
-
-    let data = null;
-    try {
-      data = await res.json();
-    } catch {
-      data = null;
-    }
-
-    if (!res.ok || data?.ok === false) {
-      return {
-        ok: false,
-        mensagem: data?.mensagem || `Falha no sync (HTTP ${res.status}).`,
-      };
-    }
-
-    return {
-      ok: true,
-      mensagem: `Sync concluído: ${data?.licenca_status || "-"}`,
-      detalhe: `onboarding: ${data?.onboarding_status || "-"} | liberado_login: ${data?.liberado_login ? "sim" : "não"}`,
-    };
-  } catch (err) {
-    if (err?.name === "AbortError") {
-      return { ok: false, mensagem: "Timeout (10s) no sync da instância." };
-    }
-    return {
-      ok: false,
-      mensagem: "Falha ao sincronizar licença na instância.",
-      detalhe: err?.message || String(err),
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
+  return api("/configuracao/camaras/forcar-sync", {
+    method: "POST",
+    body: JSON.stringify({ codigo_instancia: item?.codigo_instancia }),
+  });
 }
 
 async function logoutAllSessions() {
@@ -547,7 +460,6 @@ async function renderMaster() {
           <input id="uf" class="input" placeholder="UF" maxlength="2" />
           <input id="slug" class="input" placeholder="Slug (opcional)" />
           <input id="plano" class="input" placeholder="Plano (ex: Profissional)" value="Plano Basico" />
-          <input id="backendUrl" class="input" placeholder="URL backend da câmara (opcional)" />
           <select id="licenca" class="select">
             <option value="TESTE">EM ANÁLISE</option>
             <option value="ATIVA">ATIVA</option>
@@ -719,7 +631,6 @@ async function renderMaster() {
   const ufInput = node.querySelector("#uf");
   const slugInput = node.querySelector("#slug");
   const planoInput = node.querySelector("#plano");
-  const backendUrlInput = node.querySelector("#backendUrl");
   const licencaSelect = node.querySelector("#licenca");
   const offlineValorInput = node.querySelector("#offlineValor");
   const offlineUnidadeSelect = node.querySelector("#offlineUnidade");
@@ -737,7 +648,6 @@ async function renderMaster() {
     ufInput.value = "";
     slugInput.value = "";
     planoInput.value = "Plano Basico";
-    backendUrlInput.value = "";
     licencaSelect.value = "TESTE";
     offlineValorInput.value = "30";
     offlineUnidadeSelect.value = "DIAS";
@@ -754,7 +664,6 @@ async function renderMaster() {
     ufInput.value = item.uf || "";
     slugInput.value = item.tenant_slug || "";
     planoInput.value = item.plano_nome || "Plano Basico";
-    backendUrlInput.value = item.backend_url || "";
     licencaSelect.value = item.licenca_status || "TESTE";
     offlineValorInput.value = String(item.licenca_offline_valor || 30);
     offlineUnidadeSelect.value = item.licenca_offline_unidade || "DIAS";
@@ -773,7 +682,6 @@ async function renderMaster() {
       uf: ufInput.value.trim() || null,
       tenant_slug: slugInput.value.trim() || null,
       plano_nome: planoInput.value.trim() || "Plano Basico",
-      backend_url: backendUrlInput.value.trim() || null,
       licenca_status: licencaSelect.value,
       licenca_offline_valor: Math.max(1, Number(offlineValorInput.value || 30)),
       licenca_offline_unidade: offlineUnidadeSelect.value || "DIAS",
