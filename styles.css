@@ -272,6 +272,153 @@ thead th {
   justify-content: space-between;
 }
 
+.toast-root {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(520px, 92vw);
+}
+
+.toast {
+  border-radius: 10px;
+  padding: 12px 14px;
+  border: 1px solid #2b3b5f;
+  background: #0e1a35;
+  color: #e5ecff;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.38);
+  font-size: 13px;
+  line-height: 1.4;
+  animation: toast-in .18s ease;
+}
+
+.toast-success {
+  border-color: #166534;
+  background: #052e1b;
+  color: #86efac;
+}
+
+.toast-error {
+  border-color: #7f1d1d;
+  background: #3b0a0a;
+  color: #fecaca;
+}
+
+.toast-warn {
+  border-color: #78350f;
+  background: #3d2a06;
+  color: #fde68a;
+}
+
+.toast-info {
+  border-color: #1e3a8a;
+  background: #0f1f46;
+  color: #bfdbfe;
+}
+
+.toast-out {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: .18s ease;
+}
+
+.adv-actions {
+  display: inline-block;
+}
+
+.adv-actions summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #93a4c9;
+  padding: 6px 8px;
+  border: 1px solid #2b3b5f;
+  border-radius: 8px;
+  background: #0a1329;
+}
+
+.adv-actions summary::-webkit-details-marker {
+  display: none;
+}
+
+.adv-actions[open] summary {
+  color: #dbeafe;
+  border-color: #3b82f6;
+}
+
+.adv-actions-row {
+  margin-top: 8px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.audit-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+}
+
+.audit-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.68);
+  backdrop-filter: blur(2px);
+}
+
+.audit-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(1120px, 94vw);
+  max-height: 86vh;
+  overflow: hidden;
+}
+
+.lock-icon {
+  width: 12px;
+  height: 9px;
+  display: inline-block;
+  border: 1.8px solid #93a4c9;
+  border-radius: 2px;
+  position: relative;
+}
+
+.lock-icon::before {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 5px;
+  border: 1.8px solid #93a4c9;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  left: 50%;
+  transform: translateX(-50%);
+  top: -6px;
+  background: transparent;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 1020px) {
   .grid-2 {
     grid-template-columns: 1fr;

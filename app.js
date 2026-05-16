@@ -15,6 +15,12 @@ const state = {
   },
   page: 1,
   pageSize: 8,
+  security: {
+    codigo_instancia: "",
+    novo_email: "",
+    novo_nome: "",
+    nova_senha: "",
+  },
 };
 
 function fmtDate(v) {
@@ -26,6 +32,32 @@ function el(html) {
   const template = document.createElement("template");
   template.innerHTML = html.trim();
   return template.content.firstElementChild;
+}
+
+function ensureToastRoot() {
+  let root = document.getElementById("toastRoot");
+  if (!root) {
+    root = document.createElement("div");
+    root.id = "toastRoot";
+    root.className = "toast-root";
+    document.body.appendChild(root);
+  }
+  return root;
+}
+
+function showToast(message, type = "info", timeoutMs = 5200) {
+  const root = ensureToastRoot();
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  root.appendChild(toast);
+
+  const remove = () => {
+    toast.classList.add("toast-out");
+    setTimeout(() => toast.remove(), 180);
+  };
+  setTimeout(remove, timeoutMs);
+  toast.onclick = remove;
 }
 
 async function api(path, options = {}) {
@@ -246,7 +278,7 @@ async function gerarToken(codigoInstancia) {
     body: JSON.stringify({ codigo_instancia: codigoInstancia }),
   });
   if (data?.monitor_token) {
-    alert(`Token da instância ${data.codigo_instancia}:\n\n${data.monitor_token}`);
+    showToast(`Token ${data.codigo_instancia}: ${data.monitor_token}`, "info", 12000);
   }
 }
 
@@ -261,6 +293,119 @@ async function excluirCamara(codigoInstancia) {
   return api(`/configuracao/camaras/${encodeURIComponent(codigoInstancia)}`, {
     method: "DELETE",
   });
+}
+
+async function redefinirCredencialAdmin(codigoInstancia, payload) {
+  return api("/configuracao/camaras/admin/redefinir-credencial", {
+    method: "POST",
+    body: JSON.stringify({
+      codigo_instancia: codigoInstancia,
+      novo_email: payload.novo_email || null,
+      nova_senha: payload.nova_senha,
+      novo_nome: payload.novo_nome || null,
+    }),
+  });
+}
+
+async function testarConexaoInstancia(item) {
+  const backendUrl = (item?.backend_url || "").trim();
+  if (!backendUrl) {
+    return { ok: false, mensagem: "Instância sem backend_url configurado." };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  const url = `${backendUrl.replace(/\/$/, "")}/configuracao/onboarding/status`;
+
+  try {
+    const started = performance.now();
+    const res = await fetch(url, {
+      method: "GET",
+      signal: controller.signal,
+    });
+    const elapsed = Math.round(performance.now() - started);
+
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+
+    if (!res.ok) {
+      return {
+        ok: false,
+        mensagem: `HTTP ${res.status} em ${elapsed}ms`,
+        detalhe: data?.message || data?.mensagem || "Resposta inválida.",
+      };
+    }
+
+    return {
+      ok: true,
+      mensagem: `Conexão OK (${elapsed}ms)`,
+      detalhe: `onboarding_status: ${data?.onboarding_status || "-"} | licenca_status: ${data?.licenca_status || "-"}`,
+    };
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      return { ok: false, mensagem: "Timeout (8s) ao conectar na instância." };
+    }
+    return {
+      ok: false,
+      mensagem: "Falha de conexão com backend da instância.",
+      detalhe: err?.message || String(err),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function sincronizarLicencaInstanciaAgora(item) {
+  const backendUrl = (item?.backend_url || "").trim();
+  if (!backendUrl) {
+    return { ok: false, mensagem: "Instância sem backend_url configurado." };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  const url = `${backendUrl.replace(/\/$/, "")}/configuracao/licenca/sincronizar-agora`;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      signal: controller.signal,
+    });
+
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+
+    if (!res.ok || data?.ok === false) {
+      return {
+        ok: false,
+        mensagem: data?.mensagem || `Falha no sync (HTTP ${res.status}).`,
+      };
+    }
+
+    return {
+      ok: true,
+      mensagem: `Sync concluído: ${data?.licenca_status || "-"}`,
+      detalhe: `onboarding: ${data?.onboarding_status || "-"} | liberado_login: ${data?.liberado_login ? "sim" : "não"}`,
+    };
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      return { ok: false, mensagem: "Timeout (10s) no sync da instância." };
+    }
+    return {
+      ok: false,
+      mensagem: "Falha ao sincronizar licença na instância.",
+      detalhe: err?.message || String(err),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function logoutAllSessions() {
@@ -280,7 +425,7 @@ function licBadge(v) {
   if (v === "ATIVA") return `<span class="badge ok">ATIVA</span>`;
   if (v === "INADIMPLENTE") return `<span class="badge warn">INADIMPLENTE</span>`;
   if (v === "BLOQUEADA") return `<span class="badge danger">BLOQUEADA</span>`;
-  return `<span class="badge off">TESTE</span>`;
+  return `<span class="badge off">EM ANÁLISE</span>`;
 }
 
 function actionButtonClass(v) {
@@ -367,7 +512,7 @@ async function renderMaster() {
     const aud = await loadAuditoria(30);
     auditoria = aud?.itens || [];
   } catch (err) {
-    alert(`Falha ao carregar dados do painel.\n${err.message || err}`);
+    showToast(`Falha ao carregar dados do painel: ${err.message || err}`, "error");
     return;
   }
   const root = document.getElementById("app");
@@ -387,6 +532,7 @@ async function renderMaster() {
         </div>
         <div class="row">
           <button id="refresh" class="btn btn-dark">Atualizar</button>
+          <button id="openAudit" class="btn btn-dark">Auditoria</button>
           <button id="logoutAll" class="btn btn-amber">Encerrar todas as sessões</button>
           <button id="logout" class="btn btn-red">Sair</button>
         </div>
@@ -403,7 +549,7 @@ async function renderMaster() {
           <input id="plano" class="input" placeholder="Plano (ex: Profissional)" value="Plano Basico" />
           <input id="backendUrl" class="input" placeholder="URL backend da câmara (opcional)" />
           <select id="licenca" class="select">
-            <option value="TESTE">TESTE</option>
+            <option value="TESTE">EM ANÁLISE</option>
             <option value="ATIVA">ATIVA</option>
             <option value="INADIMPLENTE">INADIMPLENTE</option>
             <option value="BLOQUEADA">BLOQUEADA</option>
@@ -469,21 +615,32 @@ async function renderMaster() {
         </div>
       </section>
 
-      <section class="card">
-        <h3>Auditoria recente</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Quando</th>
-              <th>Ação</th>
-              <th>Entidade</th>
-              <th>Usuário</th>
-              <th>IP</th>
-            </tr>
-          </thead>
-          <tbody id="auditRows"></tbody>
-        </table>
-      </section>
+      <div id="auditModal" class="audit-modal hidden">
+        <div class="audit-backdrop" id="closeAuditBackdrop"></div>
+        <section class="audit-panel card">
+          <div class="row" style="justify-content:space-between;">
+            <h3 style="margin:0;">Auditoria recente</h3>
+            <button id="closeAudit" class="btn btn-dark">Fechar</button>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <input id="auditFilter" class="input" placeholder="Filtrar por ação (ex: LOGIN, LICENCA, RESET)" />
+          </div>
+          <div style="max-height:60vh; overflow:auto; margin-top:10px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Quando</th>
+                  <th>Ação</th>
+                  <th>Entidade</th>
+                  <th>Usuário</th>
+                  <th>IP</th>
+                </tr>
+              </thead>
+              <tbody id="auditRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
     </div>
   `);
   root.appendChild(node);
@@ -503,16 +660,26 @@ async function renderMaster() {
     renderLogin();
   };
   node.querySelector("#refresh").onclick = () => renderMaster();
+  const auditModal = node.querySelector("#auditModal");
+  const openAuditBtn = node.querySelector("#openAudit");
+  const closeAuditBtn = node.querySelector("#closeAudit");
+  const closeAuditBackdrop = node.querySelector("#closeAuditBackdrop");
+  const auditFilterInput = node.querySelector("#auditFilter");
+  const openAudit = () => auditModal.classList.remove("hidden");
+  const closeAudit = () => auditModal.classList.add("hidden");
+  openAuditBtn.onclick = openAudit;
+  closeAuditBtn.onclick = closeAudit;
+  closeAuditBackdrop.onclick = closeAudit;
   node.querySelector("#logoutAll").onclick = async () => {
     const ok = confirm("Encerrar todas as sessões ativas do seu usuário ADMIN?");
     if (!ok) return;
     try {
       await logoutAllSessions();
-      alert("Sessões encerradas. Faça login novamente.");
+      showToast("Sessões encerradas. Faça login novamente.", "success");
       logoutMaster();
       renderLogin();
     } catch (err) {
-      alert(`Erro ao encerrar sessões.\n${err.message || err}`);
+      showToast(`Erro ao encerrar sessões: ${err.message || err}`, "error");
     }
   };
   node.querySelector("#prevPage").onclick = () => {
@@ -612,7 +779,7 @@ async function renderMaster() {
       licenca_offline_unidade: offlineUnidadeSelect.value || "DIAS",
     };
     if (!payload.codigo_instancia || !payload.nome_oficial) {
-      alert("Informe código e nome.");
+      showToast("Informe código e nome.", "warn");
       return;
     }
     try {
@@ -620,11 +787,14 @@ async function renderMaster() {
       saveCamaraBtn.disabled = true;
       formHint.textContent = "Salvando...";
       await upsertCamara(payload);
-      alert(state.editCodigo ? "Câmara atualizada com sucesso." : "Câmara salva com sucesso.");
+      showToast(
+        state.editCodigo ? "Câmara atualizada com sucesso." : "Câmara salva com sucesso.",
+        "success",
+      );
       resetForm();
       await renderMaster();
     } catch (err) {
-      alert(`Erro ao salvar câmara.\n${err.message || err}`);
+      showToast(`Erro ao salvar câmara: ${err.message || err}`, "error");
     } finally {
       state.saving = false;
       saveCamaraBtn.disabled = false;
@@ -648,17 +818,24 @@ async function renderMaster() {
         <td>${fmtDate(item.ultimo_heartbeat_em)}</td>
         <td>
           <div class="row">
-            <button class="btn btn-dark tok">Token</button>
-            <button class="btn btn-amber revoke">Revogar token</button>
+            <button class="btn btn-dark ping">Testar conexão</button>
+            <button class="btn btn-dark syncNow">Forçar sync</button>
             <button class="btn edit">Editar</button>
             <select class="select quickStatus" style="min-width:140px;">
               <option value="ATIVA">ATIVA</option>
               <option value="INADIMPLENTE">INADIMPLENTE</option>
               <option value="BLOQUEADA">BLOQUEADA</option>
-              <option value="TESTE">TESTE</option>
+              <option value="TESTE">EM ANÁLISE</option>
             </select>
             <button class="${actionButtonClass(item.licenca_status)} applyStatus">Aplicar</button>
             ${item.codigo_instancia === "default" ? "" : '<button class="btn btn-red del">Excluir</button>'}
+            <details class="adv-actions">
+              <summary><span class="lock-icon" aria-hidden="true"></span>Avançado</summary>
+              <div class="row adv-actions-row">
+                <button class="btn btn-dark tok">Token</button>
+                <button class="btn btn-amber revoke">Revogar token</button>
+              </div>
+            </details>
           </div>
         </td>
       </tr>
@@ -667,7 +844,56 @@ async function renderMaster() {
       try {
         await gerarToken(item.codigo_instancia);
       } catch (err) {
-        alert(`Erro ao gerar token.\n${err.message || err}`);
+        showToast(`Erro ao gerar token: ${err.message || err}`, "error");
+      }
+    };
+    tr.querySelector(".ping").onclick = async () => {
+      try {
+        const resp = await testarConexaoInstancia(item);
+        if (!resp.ok) {
+          showToast(
+            `Instância "${item.codigo_instancia}": ${resp.mensagem}${
+              resp.detalhe ? ` | ${resp.detalhe}` : ""
+            }`,
+            "warn",
+            8000,
+          );
+          return;
+        }
+        showToast(
+          `Instância "${item.codigo_instancia}": ${resp.mensagem}${
+            resp.detalhe ? ` | ${resp.detalhe}` : ""
+          }`,
+          "success",
+          8000,
+        );
+      } catch (err) {
+        showToast(`Erro ao testar conexão: ${err.message || err}`, "error");
+      }
+    };
+    tr.querySelector(".syncNow").onclick = async () => {
+      try {
+        const resp = await sincronizarLicencaInstanciaAgora(item);
+        if (!resp.ok) {
+          showToast(
+            `Instância "${item.codigo_instancia}": ${resp.mensagem}${
+              resp.detalhe ? ` | ${resp.detalhe}` : ""
+            }`,
+            "warn",
+            8000,
+          );
+          return;
+        }
+        showToast(
+          `Instância "${item.codigo_instancia}": ${resp.mensagem}${
+            resp.detalhe ? ` | ${resp.detalhe}` : ""
+          }`,
+          "success",
+          8000,
+        );
+        await renderMaster();
+      } catch (err) {
+        showToast(`Erro ao sincronizar instância: ${err.message || err}`, "error");
       }
     };
     tr.querySelector(".revoke").onclick = async () => {
@@ -675,9 +901,9 @@ async function renderMaster() {
       if (!ok) return;
       try {
         const resp = await revogarToken(item.codigo_instancia);
-        alert(resp?.mensagem || "Token revogado.");
+        showToast(resp?.mensagem || "Token revogado.", "success");
       } catch (err) {
-        alert(`Erro ao revogar token.\n${err.message || err}`);
+        showToast(`Erro ao revogar token: ${err.message || err}`, "error");
       }
     };
     tr.querySelector(".edit").onclick = () => {
@@ -689,9 +915,10 @@ async function renderMaster() {
     tr.querySelector(".applyStatus").onclick = async () => {
       try {
         await upsertCamara({ ...item, licenca_status: quickStatus.value });
+        showToast("Licença atualizada com sucesso.", "success");
         await renderMaster();
       } catch (err) {
-        alert(`Erro ao atualizar licença.\n${err.message || err}`);
+        showToast(`Erro ao atualizar licença: ${err.message || err}`, "error");
       }
     };
     const delBtn = tr.querySelector(".del");
@@ -702,13 +929,13 @@ async function renderMaster() {
         try {
           const resp = await excluirCamara(item.codigo_instancia);
           if (resp?.ok === false) {
-            alert(resp?.mensagem || "Não foi possível excluir.");
+            showToast(resp?.mensagem || "Não foi possível excluir.", "warn");
             return;
           }
-          alert("Instância excluída com sucesso.");
+          showToast("Instância excluída com sucesso.", "success");
           await renderMaster();
         } catch (err) {
-          alert(`Erro ao excluir instância.\n${err.message || err}`);
+          showToast(`Erro ao excluir instância: ${err.message || err}`, "error");
         }
       };
     }
@@ -716,19 +943,135 @@ async function renderMaster() {
   }
 
   const auditRows = node.querySelector("#auditRows");
-  auditRows.innerHTML = "";
-  for (const ev of auditoria) {
-    const tr = el(`
-      <tr>
-        <td>${fmtDate(ev.criado_em)}</td>
-        <td>${ev.acao || "-"}</td>
-        <td>${ev.entidade || "-"}</td>
-        <td>${ev.usuario_nome || ev.usuario_id || "-"}</td>
-        <td>${ev.ip || "-"}</td>
-      </tr>
-    `);
-    auditRows.appendChild(tr);
+  const renderAuditRows = () => {
+    const filtro = (auditFilterInput.value || "").trim().toLowerCase();
+    const itensAuditoria = !filtro
+      ? auditoria
+      : auditoria.filter((ev) =>
+          String(ev.acao || "").toLowerCase().includes(filtro),
+        );
+
+    auditRows.innerHTML = "";
+    for (const ev of itensAuditoria) {
+      const tr = el(`
+        <tr>
+          <td>${fmtDate(ev.criado_em)}</td>
+          <td>${ev.acao || "-"}</td>
+          <td>${ev.entidade || "-"}</td>
+          <td>${ev.usuario_nome || ev.usuario_id || "-"}</td>
+          <td>${ev.ip || "-"}</td>
+        </tr>
+      `);
+      auditRows.appendChild(tr);
+    }
+  };
+  renderAuditRows();
+  auditFilterInput.oninput = renderAuditRows;
+
+  const securityCard = el(`
+    <section class="card">
+      <h3>Segurança do Admin da Câmara</h3>
+      <p class="muted" style="margin-top:-4px;">
+        Redefina credenciais do administrador local da instância selecionada.
+      </p>
+      <small id="securityBackendHint" class="muted">Backend da instância: -</small>
+      <div class="grid grid-2">
+        <select id="securityCodigo" class="select"></select>
+        <input id="securityEmail" class="input" placeholder="Novo e-mail (opcional)" />
+        <input id="securityNome" class="input" placeholder="Novo nome (opcional)" />
+        <input id="securitySenha" class="input" type="password" placeholder="Nova senha (mínimo 6)" />
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button id="securityApply" class="btn btn-blue">Aplicar nova credencial</button>
+        <small id="securityHint" class="muted"></small>
+      </div>
+    </section>
+  `);
+  root.querySelector(".wrap").insertBefore(securityCard, node.querySelector(".card:nth-of-type(3)"));
+
+  const securityCodigo = securityCard.querySelector("#securityCodigo");
+  const securityEmail = securityCard.querySelector("#securityEmail");
+  const securityNome = securityCard.querySelector("#securityNome");
+  const securitySenha = securityCard.querySelector("#securitySenha");
+  const securityApply = securityCard.querySelector("#securityApply");
+  const securityHint = securityCard.querySelector("#securityHint");
+  const securityBackendHint = securityCard.querySelector("#securityBackendHint");
+
+  securityCodigo.innerHTML = state.camaras
+    .map(
+      (cam) =>
+        `<option value="${cam.codigo_instancia}">${cam.codigo_instancia} - ${cam.nome_oficial}</option>`,
+    )
+    .join("");
+
+  if (!state.security.codigo_instancia && state.camaras.length) {
+    state.security.codigo_instancia = state.camaras[0].codigo_instancia;
   }
+  securityCodigo.value = state.security.codigo_instancia || "";
+  securityEmail.value = state.security.novo_email || "";
+  securityNome.value = state.security.novo_nome || "";
+  securitySenha.value = "";
+
+  function renderBackendHint() {
+    const selected = state.camaras.find(
+      (cam) => cam.codigo_instancia === (securityCodigo.value || "").trim(),
+    );
+    securityBackendHint.textContent = `Backend da instância: ${
+      selected?.backend_url || "não configurado"
+    }`;
+  }
+
+  securityCodigo.onchange = (e) => {
+    state.security.codigo_instancia = e.target.value;
+    renderBackendHint();
+  };
+  securityEmail.oninput = (e) => {
+    state.security.novo_email = e.target.value;
+  };
+  securityNome.oninput = (e) => {
+    state.security.novo_nome = e.target.value;
+  };
+
+  securityApply.onclick = async () => {
+    const codigoInstancia = (securityCodigo.value || "").trim().toLowerCase();
+    const novaSenha = (securitySenha.value || "").trim();
+    if (!codigoInstancia) {
+      securityHint.textContent = "Selecione uma instância.";
+      return;
+    }
+    if (novaSenha.length < 6) {
+      securityHint.textContent = "Informe uma nova senha com pelo menos 6 caracteres.";
+      return;
+    }
+    const ok = confirm(`Aplicar nova credencial admin para "${codigoInstancia}"?`);
+    if (!ok) return;
+
+    try {
+      securityApply.disabled = true;
+      securityHint.textContent = "Aplicando...";
+      const resp = await redefinirCredencialAdmin(codigoInstancia, {
+        novo_email: (securityEmail.value || "").trim() || null,
+        novo_nome: (securityNome.value || "").trim() || null,
+        nova_senha: novaSenha,
+      });
+      if (resp?.ok === false) {
+        securityHint.textContent = resp?.mensagem || "Falha ao redefinir credencial.";
+        return;
+      }
+      securitySenha.value = "";
+      state.security.nova_senha = "";
+      securityHint.textContent = "Credencial atualizada com sucesso.";
+      showToast(resp?.mensagem || "Credencial atualizada com sucesso.", "success");
+    } catch (err) {
+      securityHint.textContent = `Erro: ${err.message || err}`;
+      showToast(`Erro ao atualizar credencial: ${err.message || err}`, "error");
+    } finally {
+      securityApply.disabled = false;
+    }
+  };
+
+  renderBackendHint();
+
 }
 
 async function bootstrap() {
@@ -748,5 +1091,9 @@ async function bootstrap() {
 bootstrap().catch(() => renderLogin());
 
 window.addEventListener("unhandledrejection", (event) => {
-  alert(`Erro inesperado:\n${event.reason?.message || event.reason || "sem detalhe"}`);
+  showToast(
+    `Erro inesperado: ${event.reason?.message || event.reason || "sem detalhe"}`,
+    "error",
+    10000,
+  );
 });
