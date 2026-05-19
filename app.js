@@ -262,7 +262,7 @@ async function loadMe() {
 
 async function loadCamaras() {
   const data = await api("/configuracao/camaras");
-  state.camaras = data.itens || [];
+  state.camaras = (data.itens || []).filter((item) => (item.codigo_instancia || "").toLowerCase() !== "default");
 }
 
 async function upsertCamara(payload) {
@@ -331,14 +331,19 @@ async function loadAuditoria(limite = 40) {
 
 function statusBadge(item) {
   const online = item.status_online === "ONLINE";
-  return `<span class="badge ${online ? "ok" : "off"}"><span class="dot ${online ? "pulse" : ""}" style="background:${online ? "#22c55e" : "#94a3b8"}"></span>${online ? "ONLINE" : "OFFLINE"}</span>`;
+  const tone = online ? "green" : "red";
+  return `<span class="signal-badge signal-${tone}"><span class="signal-icon" aria-hidden="true"><i></i><i></i><i></i><i></i></span>${online ? "ONLINE" : "OFFLINE"}</span>`;
 }
 
 function licBadge(v) {
-  if (v === "ATIVA") return `<span class="badge ok">ATIVA</span>`;
-  if (v === "INADIMPLENTE") return `<span class="badge warn">INADIMPLENTE</span>`;
-  if (v === "BLOQUEADA") return `<span class="badge danger">BLOQUEADA</span>`;
-  return `<span class="badge off">EM ANÁLISE</span>`;
+  const meta = {
+    ATIVA: { label: "ATIVA", cls: "ok", color: "#22c55e", pulse: true },
+    INADIMPLENTE: { label: "INADIMPLENTE", cls: "warn", color: "#f59e0b", pulse: false },
+    BLOQUEADA: { label: "BLOQUEADA", cls: "danger", color: "#ef4444", pulse: false },
+    TESTE: { label: "EM ANALISE", cls: "off", color: "#94a3b8", pulse: false },
+  }[v || "TESTE"] || { label: "EM ANALISE", cls: "off", color: "#94a3b8", pulse: false };
+
+  return `<span class="badge ${meta.cls}">${meta.label}</span>`;
 }
 
 function actionButtonClass(v) {
@@ -444,6 +449,7 @@ async function renderMaster() {
           <small class="muted">Logado como: ${state.user?.nome || state.user?.email || "-"}</small>
         </div>
         <div class="row">
+          <button id="openCamaraForm" class="btn btn-blue">Cadastrar câmara</button>
           <button id="refresh" class="btn btn-dark">Atualizar</button>
           <button id="openAudit" class="btn btn-dark">Auditoria</button>
           <button id="logoutAll" class="btn btn-amber">Encerrar todas as sessões</button>
@@ -451,7 +457,7 @@ async function renderMaster() {
         </div>
       </div>
 
-      <section class="card">
+      <section id="camaraFormCard" class="card hidden">
         <h3 id="formTitle">Cadastrar câmara</h3>
         <div class="grid grid-2">
           <input id="codigo" class="input" placeholder="Código da instância" />
@@ -500,14 +506,14 @@ async function renderMaster() {
             </select>
           </div>
         </div>
-        <table>
+        <table class="instances-table">
           <thead>
             <tr>
-              <th>Câmara</th>
-              <th>Código</th>
-              <th>Plano</th>
               <th>Status</th>
-              <th>Licença</th>
+              <th>Licenca</th>
+              <th>Camara</th>
+              <th>Codigo</th>
+              <th>Plano</th>
               <th>Janela offline</th>
               <th>Sync licença</th>
               <th>Restante</th>
@@ -624,6 +630,8 @@ async function renderMaster() {
     renderMaster();
   };
 
+  const formCard = node.querySelector("#camaraFormCard");
+  const openCamaraFormBtn = node.querySelector("#openCamaraForm");
   const formTitle = node.querySelector("#formTitle");
   const codigoInput = node.querySelector("#codigo");
   const nomeInput = node.querySelector("#nome");
@@ -652,6 +660,7 @@ async function renderMaster() {
     offlineValorInput.value = "30";
     offlineUnidadeSelect.value = "DIAS";
     cancelEditBtn.style.display = "none";
+    formCard.classList.add("hidden");
   }
 
   function fillForm(item) {
@@ -668,8 +677,14 @@ async function renderMaster() {
     offlineValorInput.value = String(item.licenca_offline_valor || 30);
     offlineUnidadeSelect.value = item.licenca_offline_unidade || "DIAS";
     cancelEditBtn.style.display = "inline-flex";
+    formCard.classList.remove("hidden");
   }
 
+  openCamaraFormBtn.onclick = () => {
+    resetForm();
+    formCard.classList.remove("hidden");
+    formTitle.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
   cancelEditBtn.onclick = () => resetForm();
   resetForm();
 
@@ -715,11 +730,11 @@ async function renderMaster() {
   for (const item of itens) {
     const tr = el(`
       <tr>
+        <td>${statusBadge(item)}</td>
+        <td>${licBadge(item.licenca_status)}</td>
         <td>${item.nome_oficial}</td>
         <td>${item.codigo_instancia}</td>
         <td>${item.plano_nome || "Plano Basico"}</td>
-        <td>${statusBadge(item)}</td>
-        <td>${licBadge(item.licenca_status)}</td>
         <td>${item.licenca_offline_valor || 30} ${unidadeLabel(item.licenca_offline_unidade)}</td>
         <td>${syncBadge(item)}</td>
         <td>${syncRemainingText(item)}</td>
@@ -878,21 +893,26 @@ async function renderMaster() {
 
   const securityCard = el(`
     <section class="card">
-      <h3>Segurança do Admin da Câmara</h3>
-      <p class="muted" style="margin-top:-4px;">
-        Redefina credenciais do administrador local da instância selecionada.
-      </p>
-      <small id="securityBackendHint" class="muted">Backend da instância: -</small>
-      <div class="grid grid-2">
-        <select id="securityCodigo" class="select"></select>
-        <input id="securityEmail" class="input" placeholder="Novo e-mail (opcional)" />
-        <input id="securityNome" class="input" placeholder="Novo nome (opcional)" />
-        <input id="securitySenha" class="input" type="password" placeholder="Nova senha (mínimo 6)" />
-      </div>
-      <div class="row" style="margin-top:12px;">
-        <button id="securityApply" class="btn btn-blue">Aplicar nova credencial</button>
-        <small id="securityHint" class="muted"></small>
-      </div>
+      <details class="adv-actions security-advanced">
+        <summary><span class="lock-icon"></span>Ações avançadas</summary>
+        <div class="adv-actions-row security-panel">
+          <h3>Segurança do Admin da Câmara</h3>
+          <p class="muted" style="margin-top:-4px;">
+            Redefina credenciais do administrador local da instância selecionada.
+          </p>
+          <small id="securityBackendHint" class="muted">Backend da instância: -</small>
+          <div class="grid grid-2">
+            <select id="securityCodigo" class="select"></select>
+            <input id="securityEmail" class="input" placeholder="Novo e-mail (opcional)" />
+            <input id="securityNome" class="input" placeholder="Novo nome (opcional)" />
+            <input id="securitySenha" class="input" type="password" placeholder="Nova senha (mínimo 6)" />
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <button id="securityApply" class="btn btn-blue">Aplicar nova credencial</button>
+            <small id="securityHint" class="muted"></small>
+          </div>
+        </div>
+      </details>
     </section>
   `);
   root.querySelector(".wrap").insertBefore(securityCard, node.querySelector(".card:nth-of-type(3)"));

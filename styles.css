@@ -424,3 +424,244 @@ thead th {
     grid-template-columns: 1fr;
   }
 }
+.signal-badge {
+  --signal-color: #22c55e;
+  --signal-bg: rgba(34, 197, 94, 0.12);
+  --signal-border: rgba(34, 197, 94, 0.32);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 132px;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--signal-border);
+  background: var(--signal-bg);
+  color: var(--signal-color);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.signal-green {
+  --signal-color: #86efac;
+  --signal-bg: rgba(34, 197, 94, 0.13);
+  --signal-border: rgba(34, 197, 94, 0.38);
+}
+
+.signal-yellow {
+  --signal-color: #fde68a;
+  --signal-bg: rgba(245, 158, 11, 0.15);
+  --signal-border: rgba(245, 158, 11, 0.42);
+}
+
+.signal-red {
+  --signal-color: #fecaca;
+  --signal-bg: rgba(239, 68, 68, 0.15);
+  --signal-border: rgba(239, 68, 68, 0.42);
+}
+
+.signal-orange {
+  --signal-color: #fed7aa;
+  --signal-bg: rgba(249, 115, 22, 0.16);
+  --signal-border: rgba(249, 115, 22, 0.44);
+}
+
+.signal-icon {
+  display: inline-flex;
+  align-items: end;
+  gap: 2px;
+  height: 15px;
+}
+
+.signal-icon i {
+  width: 3px;
+  border-radius: 999px;
+  background: var(--signal-color);
+  box-shadow: 0 0 10px var(--signal-color);
+  animation: signal-rise 1.15s ease-in-out infinite;
+}
+
+.signal-icon i:nth-child(1) {
+  height: 5px;
+  animation-delay: 0s;
+}
+
+.signal-icon i:nth-child(2) {
+  height: 8px;
+  animation-delay: 0.12s;
+}
+
+.signal-icon i:nth-child(3) {
+  height: 11px;
+  animation-delay: 0.24s;
+}
+
+.signal-icon i:nth-child(4) {
+  height: 14px;
+  animation-delay: 0.36s;
+}
+
+@keyframes signal-rise {
+  0%, 100% {
+    opacity: 0.42;
+    transform: scaleY(0.72);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+.security-advanced {
+  display: block;
+}
+
+.security-advanced summary {
+  width: fit-content;
+  margin-bottom: 0;
+}
+
+.security-panel {
+  margin-top: 16px;
+  border-top: 1px solid #22304d;
+  padding-top: 16px;
+}
+
+@media (max-width: 760px) {
+  .wrap {
+    padding: 14px;
+    gap: 14px;
+  }
+
+  .top {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .top h1 {
+    font-size: 30px;
+    line-height: 1.05;
+  }
+
+  .top > .row,
+  .card > .row,
+  td .row {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .card {
+    border-radius: 12px;
+    padding: 14px;
+    overflow-x: hidden;
+  }
+
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .input,
+  .select,
+  .btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .btn {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .instances-table,
+  .instances-table tbody,
+  .instances-table tr,
+  .instances-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .instances-table thead {
+    display: none;
+  }
+
+  .instances-table tr {
+    margin-top: 12px;
+    border: 1px solid #233353;
+    border-radius: 12px;
+    background: rgba(10, 19, 41, 0.58);
+    overflow: hidden;
+  }
+
+  .instances-table td {
+    border-top: 1px solid rgba(35, 51, 83, 0.72);
+    padding: 10px 12px;
+  }
+
+  .instances-table td:first-child {
+    border-top: none;
+  }
+
+  .instances-table td:not(:last-child) {
+    display: grid;
+    grid-template-columns: minmax(92px, 34%) 1fr;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .instances-table td::before {
+    color: var(--text-soft);
+    content: "";
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .instances-table td:nth-child(1)::before { content: "Status"; }
+  .instances-table td:nth-child(2)::before { content: "Licenca"; }
+  .instances-table td:nth-child(3)::before { content: "Camara"; }
+  .instances-table td:nth-child(4)::before { content: "Codigo"; }
+  .instances-table td:nth-child(5)::before { content: "Plano"; }
+  .instances-table td:nth-child(6)::before { content: "Offline"; }
+  .instances-table td:nth-child(7)::before { content: "Sync"; }
+  .instances-table td:nth-child(8)::before { content: "Restante"; }
+  .instances-table td:nth-child(9)::before { content: "Heartbeat"; }
+
+  .instances-table td:last-child {
+    padding-top: 12px;
+  }
+
+  .instances-table td:last-child .row {
+    gap: 8px;
+  }
+
+  .instances-table .signal-badge,
+  .instances-table .badge {
+    width: fit-content;
+    min-width: 0;
+  }
+
+  .adv-actions,
+  .adv-actions summary {
+    width: 100%;
+  }
+
+  .adv-actions-row {
+    width: 100%;
+  }
+
+  .audit-panel {
+    width: min(96vw, 1120px);
+  }
+
+  .audit-panel table {
+    min-width: 760px;
+  }
+
+  .audit-panel > div[style*="overflow"] {
+    overflow-x: auto !important;
+  }
+}
