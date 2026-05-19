@@ -332,7 +332,10 @@ async function loadAuditoria(limite = 40) {
 function statusBadge(item) {
   const online = item.status_online === "ONLINE";
   const tone = online ? "green" : "red";
-  return `<span class="signal-badge signal-${tone}"><span class="signal-icon" aria-hidden="true"><i></i><i></i><i></i><i></i></span>${online ? "ONLINE" : "OFFLINE"}</span>`;
+  if (online) {
+    return `<span class="signal-badge signal-${tone}"><span class="signal-icon" aria-hidden="true"><i></i><i></i><i></i><i></i></span>ONLINE</span>`;
+  }
+  return `<span class="signal-badge signal-${tone}"><span class="signal-offline-icon" aria-hidden="true"><span></span><span></span></span>OFFLINE</span>`;
 }
 
 function licBadge(v) {

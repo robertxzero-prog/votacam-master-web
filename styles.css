@@ -514,6 +514,34 @@ thead th {
   animation-delay: 0.36s;
 }
 
+.signal-offline-icon {
+  position: relative;
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+}
+
+.signal-offline-icon span {
+  position: absolute;
+  width: 14px;
+  height: 2.2px;
+  border-radius: 999px;
+  background: var(--signal-color);
+  box-shadow: 0 0 10px var(--signal-color);
+  animation: signal-offline-pulse 1.1s ease-in-out infinite;
+}
+
+.signal-offline-icon span:first-child {
+  transform: rotate(45deg);
+}
+
+.signal-offline-icon span:last-child {
+  transform: rotate(-45deg);
+  animation-delay: 0.2s;
+}
+
 @keyframes signal-rise {
   0%, 100% {
     opacity: 0.42;
@@ -522,6 +550,15 @@ thead th {
   50% {
     opacity: 1;
     transform: scaleY(1);
+  }
+}
+
+@keyframes signal-offline-pulse {
+  0%, 100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
   }
 }
 
