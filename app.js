@@ -490,7 +490,7 @@ async function renderMaster() {
         <div class="row" style="justify-content:space-between;">
           <h3 style="margin:0;">Instâncias monitoradas</h3>
           <div class="row">
-            <input id="filterQ" type="search" name="master_search_q_${Date.now()}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" class="input" placeholder="Buscar por nome/código/cidade" value="${state.filters.q}" />
+            <input id="filterQ" type="search" name="master_search_q" readonly autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" class="input" placeholder="Buscar por nome/código/cidade" value="${state.filters.q}" />
             <select id="filterStatus" class="select">
               <option value="TODOS">Status: todos</option>
               <option value="ONLINE">Status: online</option>
@@ -568,14 +568,6 @@ async function renderMaster() {
   const filterUf = node.querySelector("#filterUf");
   const filterQ = node.querySelector("#filterQ");
 
-  if (filterQ) {
-    filterQ.setAttribute("name", "master_search_q");
-    filterQ.setAttribute("autocomplete", "off");
-    filterQ.setAttribute("autocapitalize", "off");
-    filterQ.setAttribute("autocorrect", "off");
-    filterQ.setAttribute("spellcheck", "false");
-  }
-
   if (state.filters.q && state.filters.q.includes("@")) {
     state.filters.q = "";
     if (filterQ) filterQ.value = "";
@@ -595,12 +587,11 @@ async function renderMaster() {
   };
 
   if (filterQ) {
-    // Alguns navegadores preenchem após o paint; limpamos em sequência curta.
+    const unlockSearch = () => filterQ.removeAttribute("readonly");
+    filterQ.addEventListener("pointerdown", unlockSearch, { once: true });
+    filterQ.addEventListener("focus", unlockSearch, { once: true });
     window.setTimeout(sanitizeSearchValue, 0);
-    window.setTimeout(sanitizeSearchValue, 120);
-    window.setTimeout(sanitizeSearchValue, 300);
-    filterQ.addEventListener("focus", sanitizeSearchValue);
-    filterQ.addEventListener("change", sanitizeSearchValue);
+    window.setTimeout(sanitizeSearchValue, 180);
   }
 
   filterStatus.value = state.filters.status;
@@ -646,19 +637,21 @@ async function renderMaster() {
     renderMaster();
   };
 
-  filterQ.oninput = (e) => {
-    const value = String(e.target.value || "").trim();
-    if (value.includes("@")) {
-      e.target.value = "";
-      state.filters.q = "";
+  if (filterQ) {
+    filterQ.oninput = (e) => {
+      const value = String(e.target.value || "").trim();
+      if (value.includes("@")) {
+        e.target.value = "";
+        state.filters.q = "";
+        state.page = 1;
+        renderMaster();
+        return;
+      }
+      state.filters.q = value;
       state.page = 1;
       renderMaster();
-      return;
-    }
-    state.filters.q = value;
-    state.page = 1;
-    renderMaster();
-  };
+    };
+  }
   filterStatus.onchange = (e) => {
     state.filters.status = e.target.value;
     state.page = 1;
