@@ -566,6 +566,21 @@ async function renderMaster() {
   const filterStatus = node.querySelector("#filterStatus");
   const filterPlano = node.querySelector("#filterPlano");
   const filterUf = node.querySelector("#filterUf");
+  const filterQ = node.querySelector("#filterQ");
+
+  if (filterQ) {
+    filterQ.setAttribute("name", "master_search_q");
+    filterQ.setAttribute("autocomplete", "off");
+    filterQ.setAttribute("autocapitalize", "off");
+    filterQ.setAttribute("autocorrect", "off");
+    filterQ.setAttribute("spellcheck", "false");
+  }
+
+  if (state.filters.q && state.filters.q.includes("@")) {
+    state.filters.q = "";
+    if (filterQ) filterQ.value = "";
+  }
+
   filterStatus.value = state.filters.status;
   filterPlano.value = state.filters.plano;
   filterUf.value = state.filters.uf;
@@ -609,7 +624,7 @@ async function renderMaster() {
     renderMaster();
   };
 
-  node.querySelector("#filterQ").oninput = (e) => {
+  filterQ.oninput = (e) => {
     state.filters.q = e.target.value;
     state.page = 1;
     renderMaster();
