@@ -490,7 +490,7 @@ async function renderMaster() {
         <div class="row" style="justify-content:space-between;">
           <h3 style="margin:0;">Instâncias monitoradas</h3>
           <div class="row">
-            <input id="filterQ" class="input" placeholder="Buscar por nome/código/cidade" value="${state.filters.q}" />
+            <input id="filterQ" type="search" name="master_search_q_${Date.now()}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" class="input" placeholder="Buscar por nome/código/cidade" value="${state.filters.q}" />
             <select id="filterStatus" class="select">
               <option value="TODOS">Status: todos</option>
               <option value="ONLINE">Status: online</option>
@@ -581,6 +581,28 @@ async function renderMaster() {
     if (filterQ) filterQ.value = "";
   }
 
+  const sanitizeSearchValue = () => {
+    if (!filterQ) return;
+    const raw = String(filterQ.value || "").trim();
+    const loggedEmail = String(state.user?.email || "").trim().toLowerCase();
+    const normalized = raw.toLowerCase();
+    const looksLikeEmail = normalized.includes("@");
+    const isLoggedUserEmail = !!loggedEmail && normalized === loggedEmail;
+    if (looksLikeEmail || isLoggedUserEmail) {
+      filterQ.value = "";
+      state.filters.q = "";
+    }
+  };
+
+  if (filterQ) {
+    // Alguns navegadores preenchem após o paint; limpamos em sequência curta.
+    window.setTimeout(sanitizeSearchValue, 0);
+    window.setTimeout(sanitizeSearchValue, 120);
+    window.setTimeout(sanitizeSearchValue, 300);
+    filterQ.addEventListener("focus", sanitizeSearchValue);
+    filterQ.addEventListener("change", sanitizeSearchValue);
+  }
+
   filterStatus.value = state.filters.status;
   filterPlano.value = state.filters.plano;
   filterUf.value = state.filters.uf;
@@ -625,7 +647,15 @@ async function renderMaster() {
   };
 
   filterQ.oninput = (e) => {
-    state.filters.q = e.target.value;
+    const value = String(e.target.value || "").trim();
+    if (value.includes("@")) {
+      e.target.value = "";
+      state.filters.q = "";
+      state.page = 1;
+      renderMaster();
+      return;
+    }
+    state.filters.q = value;
     state.page = 1;
     renderMaster();
   };
